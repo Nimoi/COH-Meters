@@ -22,7 +22,7 @@ function readsome() {
         setTimeout(readsome, 1000);
     }
     else {
-        fs.read(file, new Buffer(bite_size), 0, bite_size, readbytes, processsome);
+        fs.read(file, new Buffer.alloc(bite_size), 0, bite_size, readbytes, processsome);
     }
 }
 
@@ -102,29 +102,38 @@ function getMatchesBetweenStrings(str,start,end) {
 	return str.match(new RegExp(start + "(.*)" + end));
 }
 
-function showTotals(log) {
-	let total = log.stack.reduce((carry, record) => {
-		return carry + record.damage;
-	}, 0).toFixed(2);
+function showTotals() {
+	let total = getDamageTotal(logs.stack);
 
 	let now = new Date();
 	let oneHourAgo = moment().subtract(1, 'hours');
-	let hour = log.stack.filter((record) => {
-		return moment(record.timestamp).isSameOrAfter(oneHourAgo);
-	}).reduce((carry, record) => {
-		return carry + record.damage;
-	}, 0).toFixed(2);
+	let hour = getDamageTotal(filterRecords(logs.stack, oneHourAgo));
 
 	let oneMinuteAgo = moment().subtract(1, 'minutes');
-	let minute = log.stack.filter((record) => {
-		return moment(record.timestamp).isSameOrAfter(oneMinuteAgo);
-	}).reduce((carry, record) => {
+	let minute = getDamageTotal(filterRecords(logs.stack, oneMinuteAgo));
+
+	let data = `T: ${total} | H: ${hour} | M: ${minute} `;
+
+	process.stdout.cursorTo(0);
+	process.stdout.write(data);
+}
+
+function getDamageTotal(arr) {
+	return arr.reduce((carry, record) => {
 		return carry + record.damage;
 	}, 0).toFixed(2);
+}
 
-	console.log({
-		total: total,
-		hour: hour,
-		minute: minute
+function filterRecords(arr,date) {
+	return arr.filter((record) => {
+		if (record.timestamp.length < 19) {
+			// TODO: what is happening here?
+			return false;
+		}
+		let timestamp = moment(record.timestamp);
+		if (! timestamp.isValid()) {
+			return false;
+		}
+		return timestamp.isSameOrAfter(date);
 	});
 }
