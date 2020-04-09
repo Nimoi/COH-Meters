@@ -141,7 +141,7 @@ function showTotals() {
 	let oneMinuteAgo = moment().subtract(1, 'minutes');
 	let minute = getDamageTotal(filterRecords(logs.stack, oneMinuteAgo));
 
-	let data = printFormat('Total', total);
+	let data = printFormat('Today', total);
 	if (Object.keys(hour).length) {
 		data += printFormat('Last Hour', hour);
 	}
