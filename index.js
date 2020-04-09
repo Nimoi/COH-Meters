@@ -6,7 +6,7 @@ var fs = require('fs'),
     readbytes = 0,
     file;
 
-fs.open(config.path, 'r', function(err, fd) { file = fd; readsome(); });
+getLatestLog();
 
 var logs = {
 	stack: [],
@@ -14,6 +14,19 @@ var logs = {
 	hour: 0,
 	minute: 0,
 };
+
+function getLatestLog() {
+	fs.readdir(config.path, function(err, items) {
+		let latestLog = items.sort().filter((record) => {
+			return record.indexOf('chatlog') > -1;
+		}).pop();
+		if (latestLog === '') {
+			throw 'Could not find a chatlog file.';
+		}
+		let path = config.path + latestLog;
+		fs.open(path, 'r', function(err, fd) { file = fd; readsome(); });
+	});
+}
 
 function readsome() {
     var stats = fs.fstatSync(file);
@@ -60,10 +73,16 @@ function parseLine(line) {
 	if (! damage) {
 		return false;
 	}
+
+	let damageType = getDamageType(line);
+	if (! damageType) {
+		return false;
+	}
 	
 	logs.stack.push({
 		timestamp: timestamp,
-		damage: damage
+		damage: damage,
+		damageType: damageType
 	});
 	showTotals(logs);
 }
@@ -98,6 +117,16 @@ function getDamage(line) {
 	return damage;
 }
 
+function getDamageType(line) {
+	let start = ' points of ';
+	let end = ' damage.';
+	let matches = getMatchesBetweenStrings(line,start,end);
+	if (! matches || matches.length < 2) {
+		return false;
+	}
+	return matches[1];
+}
+
 function getMatchesBetweenStrings(str,start,end) {
 	return str.match(new RegExp(start + "(.*)" + end));
 }
@@ -112,16 +141,43 @@ function showTotals() {
 	let oneMinuteAgo = moment().subtract(1, 'minutes');
 	let minute = getDamageTotal(filterRecords(logs.stack, oneMinuteAgo));
 
-	let data = `T: ${total} | H: ${hour} | M: ${minute} `;
+	let data = printFormat('Total', total);
+	if (Object.keys(hour).length) {
+		data += printFormat('Last Hour', hour);
+	}
+	if (Object.keys(minute).length) {
+		data += printFormat('Last Minute', minute);
+	}
 
+	printTotals(data);
+}
+
+function printTotals(input) {
+	const numberOfLines = (input.match(/\n/g) || []).length;
+	process.stdout.clearScreenDown();
+	process.stdout.write(input);
 	process.stdout.cursorTo(0);
-	process.stdout.write(data);
+	process.stdout.moveCursor(0, -numberOfLines);
+}
+
+function printFormat(title, record) {
+	let data = `${title}: \n`;
+	for (type in record) {
+		data += `${type}: ${record[type].toFixed(2)} \n`;
+	};
+	data += '\n';
+	return data;
 }
 
 function getDamageTotal(arr) {
 	return arr.reduce((carry, record) => {
-		return carry + record.damage;
-	}, 0).toFixed(2);
+		if (! carry.hasOwnProperty(record.damageType)) {
+			carry[record.damageType] = 0;
+		}
+		carry[record.damageType] += record.damage;
+		carry['Total'] += record.damage;
+		return carry;
+	}, {'Total':0});
 }
 
 function filterRecords(arr,date) {
